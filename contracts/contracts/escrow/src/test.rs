@@ -80,7 +80,7 @@ fn milestone_with_deadline(env: &Env, id: u32, amount: i128, deadline: u64) -> M
         id,
         deadline,
         amount,
-        status: MilestoneStatus::Pending,
+        status: MilestoneStatus::Created,
         description: String::from_str(env, "Deadline milestone"),
         client_approved: false,
         freelancer_approved: false,
@@ -743,6 +743,7 @@ fn test_expired_milestone_can_be_extended_then_submitted() {
 
     env.ledger().set_timestamp(1_000);
     escrow.fund();
+    escrow.start_milestone(&1);
 
     env.ledger().set_timestamp(6_000);
     assert_eq!(escrow.is_milestone_expired(&1), true);
@@ -806,6 +807,7 @@ fn test_submit_after_deadline_expired_fails() {
 
     env.ledger().set_timestamp(1_000);
     escrow.fund();
+    escrow.start_milestone(&1);
 
     env.ledger().set_timestamp(5_001);
     escrow.submit_milestone(&1);
@@ -821,6 +823,7 @@ fn test_approve_after_deadline_expired_fails() {
 
     env.ledger().set_timestamp(1_000);
     escrow.fund();
+    escrow.start_milestone(&1);
     escrow.submit_milestone(&1);
 
     env.ledger().set_timestamp(5_001);
@@ -837,6 +840,7 @@ fn test_release_after_deadline_expired_fails() {
 
     env.ledger().set_timestamp(1_000);
     escrow.fund();
+    escrow.start_milestone(&1);
     escrow.submit_milestone(&1);
     escrow.approve(&1);
 
@@ -884,6 +888,7 @@ fn test_client_refund_after_expiry_when_submitted() {
 
     env.ledger().set_timestamp(1_000);
     escrow.fund();
+    escrow.start_milestone(&1);
     escrow.submit_milestone(&1);
 
     env.ledger().set_timestamp(5_001);
@@ -934,6 +939,7 @@ fn test_dispute_can_be_raised_after_expiry() {
 
     env.ledger().set_timestamp(1_000);
     escrow.fund();
+    escrow.start_milestone(&1);
     escrow.submit_milestone(&1);
 
     env.ledger().set_timestamp(6_000);
@@ -953,6 +959,7 @@ fn test_claim_refund_locked_when_disputed_after_expiry() {
 
     env.ledger().set_timestamp(1_000);
     escrow.fund();
+    escrow.start_milestone(&1);
     escrow.submit_milestone(&1);
 
     env.ledger().set_timestamp(6_000);
@@ -970,13 +977,14 @@ fn test_arbiter_resolves_dispute_raised_after_expiry() {
 
     env.ledger().set_timestamp(1_000);
     escrow.fund();
+    escrow.start_milestone(&1);
     escrow.submit_milestone(&1);
 
     env.ledger().set_timestamp(6_000);
     escrow.dispute(&1, &setup.freelancer);
     escrow.resolve_dispute(&1, &false);
 
-    assert_eq!(escrow.get_milestones().get(0).unwrap().status, MilestoneStatus::Refunded);
+    assert_eq!(escrow.get_milestones().get(0).unwrap().status, MilestoneStatus::Resolved);
     let token_client = token::Client::new(&env, &setup.token_address);
     assert_eq!(token_client.balance(&setup.client), 1000);
     assert_eq!(escrow.get_escrow_balance(), 0);
@@ -1077,6 +1085,9 @@ fn test_arbiter_can_raise_dispute() {
     let setup = setup_test();
     initialize_single_milestone(&setup, 150);
     setup.escrow_client.fund();
+    // #189 state machine: a funded milestone must be started (Funded ->
+    // InProgress) before it can be submitted.
+    setup.escrow_client.start_milestone(&1);
     setup.escrow_client.submit_milestone(&1);
 
     // The authorized arbitrator is allowed to raise a dispute.
@@ -1094,6 +1105,9 @@ fn test_release_blocked_while_disputed() {
     let setup = setup_test();
     initialize_single_milestone(&setup, 150);
     setup.escrow_client.fund();
+    // #189 state machine: a funded milestone must be started (Funded ->
+    // InProgress) before it can be submitted.
+    setup.escrow_client.start_milestone(&1);
     setup.escrow_client.submit_milestone(&1);
     setup.escrow_client.approve(&1);
     setup.escrow_client.dispute(&1, &setup.client);
@@ -1108,6 +1122,9 @@ fn test_refund_blocked_while_disputed() {
     let setup = setup_test();
     initialize_single_milestone(&setup, 150);
     setup.escrow_client.fund();
+    // #189 state machine: a funded milestone must be started (Funded ->
+    // InProgress) before it can be submitted.
+    setup.escrow_client.start_milestone(&1);
     setup.escrow_client.submit_milestone(&1);
     setup.escrow_client.dispute(&1, &setup.freelancer);
 
@@ -1121,6 +1138,9 @@ fn test_multiple_disputes_rejected() {
     let setup = setup_test();
     initialize_single_milestone(&setup, 150);
     setup.escrow_client.fund();
+    // #189 state machine: a funded milestone must be started (Funded ->
+    // InProgress) before it can be submitted.
+    setup.escrow_client.start_milestone(&1);
     setup.escrow_client.submit_milestone(&1);
 
     setup.escrow_client.dispute(&1, &setup.client);
@@ -1136,6 +1156,9 @@ fn test_resolve_without_dispute_fails() {
     let setup = setup_test();
     initialize_single_milestone(&setup, 150);
     setup.escrow_client.fund();
+    // #189 state machine: a funded milestone must be started (Funded ->
+    // InProgress) before it can be submitted.
+    setup.escrow_client.start_milestone(&1);
     setup.escrow_client.submit_milestone(&1);
 
     setup.escrow_client.resolve_dispute(&1, &true);
@@ -1148,6 +1171,9 @@ fn test_dispute_events_are_emitted() {
 
     initialize_single_milestone(&setup, 150);
     setup.escrow_client.fund();
+    // #189 state machine: a funded milestone must be started (Funded ->
+    // InProgress) before it can be submitted.
+    setup.escrow_client.start_milestone(&1);
     setup.escrow_client.submit_milestone(&1);
 
     setup.escrow_client.dispute(&1, &setup.client);
